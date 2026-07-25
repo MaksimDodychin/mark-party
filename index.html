@@ -48,6 +48,19 @@
   .hidden { display: none !important; }
   #confetti { position: fixed; inset: 0; z-index: 19; pointer-events: none; }
   #fsBtn { position: fixed; top: 10px; right: 10px; z-index: 30; width: 42px; height: 42px; border-radius: 12px; background: #00000055; border: 1px solid #ffffff44; color: #fff; font-size: 20px; cursor: pointer; }
+  .btn.red { background: linear-gradient(180deg, #ff6a6a, #e23b3b); color: #fff; box-shadow: 0 6px 0 #a11e1e, 0 10px 20px #0006; }
+  #achv { background: radial-gradient(circle at 50% 18%, #7a1f1f, #3d0a0a 60%, #230606); justify-content: flex-start; overflow-y: auto; gap: 10px; }
+  .achGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; width: min(760px, 94vw); }
+  .achItem { background: #ffffff10; border: 2px solid #ffffff20; border-radius: 14px; padding: 10px 8px; text-align: center; opacity: .5; }
+  .achItem.on { opacity: 1; border-color: #ffd23b; background: #ffd23b1f; box-shadow: 0 4px 12px #0004; }
+  .achItem .ae { font-size: 32px; } .achItem .an { font-size: 13px; font-weight: 800; margin-top: 4px; } .achItem .ad { font-size: 11px; opacity: .85; margin-top: 3px; line-height: 1.25; }
+  .palCard { pointer-events: auto; cursor: pointer; border-radius: 14px; padding: 10px 16px; background: #ffffff14; border: 3px solid #ffffff22; font-weight: 800; min-width: 130px; }
+  .palCard.sel { border-color: #ffd23b; background: #ffd23b22; } .palCard.locked { opacity: .5; }
+  .palDots { display: flex; gap: 6px; justify-content: center; margin-top: 8px; }
+  .palDots span { width: 18px; height: 18px; border-radius: 50%; display: inline-block; border: 2px solid #ffffff55; }
+  #achToast { position: fixed; top: -110px; left: 50%; transform: translateX(-50%); z-index: 40; background: linear-gradient(180deg, #3a2a00, #171717); border: 2px solid #ffd23b; border-radius: 16px; padding: 10px 20px; font-weight: 800; box-shadow: 0 8px 24px #000a; transition: top .45s cubic-bezier(.2,1.3,.5,1); max-width: 92vw; text-align: center; }
+  #achToast.show { top: 14px; }
+  #achToast .t1 { font-size: 12px; color: #ffd23b; } #achToast .t2 { font-size: 17px; margin-top: 2px; }
 </style>
 
   <link rel="manifest" href="manifest.webmanifest">
@@ -77,6 +90,7 @@
     <button class="btn blue" id="btnChoose">🎮 Выбрать мини-игру</button>
     <button class="btn" id="btnRandom">🎲 Случайная игра</button>
   </div>
+  <div class="row"><button class="btn red small" id="btnAchv">🏆 Достижения</button></div>
   <div class="sub" style="opacity:.6;font-size:12px">Компьютер: 🔴 WASD · 🔵 стрелки · 🟡 IJKL · 🟢 8/4/5/6 · пустые места — боты</div>
 </div>
 
@@ -98,6 +112,16 @@
   <button class="btn small" id="chooseBack" style="background:#ffffff22;color:#fff;box-shadow:0 5px 0 #0005">← Назад</button>
 </div>
 
+<!-- ДОСТИЖЕНИЯ + ЦВЕТА -->
+<div id="achv" class="screen hidden">
+  <h1 style="font-size:30px; margin-top:16px">🏆 Достижения <span id="achCount" style="font-size:18px;opacity:.85"></span></h1>
+  <div class="achGrid" id="achGrid"></div>
+  <h1 style="font-size:22px; margin-top:14px">🎨 Наряд игроков</h1>
+  <div class="sub" id="palLockNote" style="opacity:.85"></div>
+  <div class="row" id="palRow"></div>
+  <button class="btn small" id="achvBack" style="background:#ffffff22;color:#fff;box-shadow:0 5px 0 #0005; margin:14px 0 24px">← Назад</button>
+</div>
+
 <!-- ЗАСТАВКА -->
 <div id="intro" class="screen hidden" style="background:#000000cc">
   <div id="introEmoji" style="font-size:90px"></div>
@@ -117,6 +141,7 @@
 <div id="hud" class="hidden"></div>
 <div id="bigMsg"></div>
 <div id="hint" class="hidden"></div>
+<div id="achToast"></div>
 <canvas id="confetti" class="hidden"></canvas>
 
 <!-- ДЖОЙСТИКИ -->
@@ -138,12 +163,32 @@ const rand = (a, b) => a + Math.random() * (b - a);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const dist2 = (ax, az, bx, bz) => Math.hypot(ax - bx, az - bz);
 
-const COLORS = [
-  { hex: 0xe23b3b, css: '#e23b3b', name: 'Красный' },
-  { hex: 0x3b7bff, css: '#3b7bff', name: 'Синий' },
-  { hex: 0xffcf33, css: '#ffcf33', name: 'Жёлтый' },
-  { hex: 0x37c85a, css: '#37c85a', name: 'Зелёный' },
+const PALETTES = [
+  { id: 'classic', name: 'Классика', colors: [
+    { hex: 0xe23b3b, css: '#e23b3b', name: 'Красный' },
+    { hex: 0x3b7bff, css: '#3b7bff', name: 'Синий' },
+    { hex: 0xffcf33, css: '#ffcf33', name: 'Жёлтый' },
+    { hex: 0x37c85a, css: '#37c85a', name: 'Зелёный' },
+  ] },
+  { id: 'rainbow', name: 'Радуга', locked: true, colors: [
+    { hex: 0xff6ec7, css: '#ff6ec7', name: 'Розовый' },
+    { hex: 0x9b59b6, css: '#9b59b6', name: 'Фиолетовый' },
+    { hex: 0xff8c1a, css: '#ff8c1a', name: 'Оранжевый' },
+    { hex: 0x8a5a2b, css: '#8a5a2b', name: 'Коричневый' },
+  ] },
+  { id: 'metal', name: 'Костюмы', locked: true, colors: [
+    { hex: 0xcd7f32, css: '#cd7f32', name: 'Бронзовый' },
+    { hex: 0x8fe9ff, css: '#8fe9ff', name: 'Алмазный' },
+    { hex: 0xffd23b, css: '#ffd23b', name: 'Золотой' },
+    { hex: 0xcfd4dd, css: '#cfd4dd', name: 'Серебряный' },
+  ] },
 ];
+// хранилище на телефоне
+const Store = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
+};
+let COLORS = PALETTES[0].colors;
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(2, devicePixelRatio));
@@ -303,7 +348,7 @@ let curGame = null;        // объект активной мини-игры
 let partyList = [], partyIdx = 0;
 let raf = 0;
 
-function showScreen(id) { ['menu', 'setup', 'choose', 'intro', 'result'].forEach(s => el(s).classList.toggle('hidden', s !== id)); }
+function showScreen(id) { ['menu', 'setup', 'choose', 'achv', 'intro', 'result'].forEach(s => el(s).classList.toggle('hidden', s !== id)); }
 function hideAllScreens() { showScreen('___none'); }
 
 function buildRoster() {
@@ -327,6 +372,8 @@ document.addEventListener('fullscreenchange', () => { camera.aspect = innerWidth
 el('btnParty').onclick = () => { Sound.init(); Sound.click(); goFS(); mode = 'party'; goSetup(); };
 el('btnChoose').onclick = () => { Sound.init(); Sound.click(); goFS(); mode = 'single'; goSetup(true); };
 el('btnRandom').onclick = () => { Sound.init(); Sound.click(); goFS(); mode = 'random'; goSetup(); };
+el('btnAchv').onclick = () => { Sound.init(); Sound.click(); state = 'achv'; showScreen('achv'); buildAchScreen(); };
+el('achvBack').onclick = () => { Sound.click(); backToMenu(); };
 
 let pendingChoose = false;
 function goSetup(chooseAfter) { pendingChoose = !!chooseAfter; state = 'setup'; showScreen('setup'); el('botsBox').classList.add('hidden'); buildPcRow(); }
@@ -449,6 +496,7 @@ function finishGame() {
   players.forEach(p => { p.points = roster - p.place + 1; });
   const winner = players.find(p => p.place === 1);
   if (mode === 'party' && winner) partyWins[winner.id] = (partyWins[winner.id] || 0) + 1;
+  Ach.onFinish(curGame, mode, humanCount, players);
   stopPlay(); showJoys(false); el('hud').classList.add('hidden'); el('hint').classList.add('hidden');
   showResult();
 }
@@ -474,7 +522,7 @@ function showResult() {
   const b2 = document.createElement('button'); b2.className = 'btn blue'; b2.textContent = '🏠 Меню'; b2.onclick = () => { Sound.click(); backToMenu(); }; btns.appendChild(b2);
 }
 function showChampion() {
-  state = 'champion'; showScreen('result');
+  state = 'champion'; showScreen('result'); Ach.onParty();
   let best = -1, champs = [];
   players.forEach(p => { const w = partyWins[p.id] || 0; if (w > best) { best = w; champs = [p]; } else if (w === best) champs.push(p); });
   el('resTitle').textContent = '🏆 ЧЕМПИОН ВЕЧЕРИНКИ!';
@@ -1290,16 +1338,106 @@ const Paintball = {
 // список игр
 const GAMES = [Dynamite, PoopStorm, Sumo, Lava, VacuumRug, RedLight, Waterfall, Flags, MazeTag, Paintball];
 
+// ======================= ДОСТИЖЕНИЯ + НАРЯДЫ =======================
+// по одному достижению на каждую мини-игру (id = 'g_'+id игры) + 4 особых
+const ACHS = [
+  { id: 'g_dynamite', em: '💥', name: 'Крепкие нервы', desc: 'Пройди «Динамит»' },
+  { id: 'g_poopstorm', em: '💩', name: 'Уклонист', desc: 'Пройди «Какашка-Шторм»' },
+  { id: 'g_sumo', em: '🥊', name: 'Толкач', desc: 'Пройди «Сумо»' },
+  { id: 'g_lava', em: '🌋', name: 'Пол не лава', desc: 'Пройди «Пол — это лава»' },
+  { id: 'g_vacuumrug', em: '🧹', name: 'Чистота — залог победы', desc: 'Займи 1-е место в «Пылесосы на ковре»' },
+  { id: 'g_redlight', em: '🕷️', name: 'Тише едешь', desc: 'Пройди «Тише едешь (Паук)»' },
+  { id: 'g_waterfall', em: '💦', name: 'Не проколешь ты — проколют тебя', desc: 'Пройди «Водопад с охотником»' },
+  { id: 'g_flags', em: '🚩', name: 'Зоркий глаз', desc: 'Пройди «Флажки»' },
+  { id: 'g_mazetag', em: '👻', name: 'Неуловимые', desc: 'Пройди «Прятки: Вода»' },
+  { id: 'g_paintball', em: '🎨', name: 'Меткий стрелок', desc: 'Пройди «Пейнтбол»' },
+  { id: 'fortune', em: '🎲', name: 'Колесо фортуны', desc: 'Сыграй в случайную мини-игру' },
+  { id: 'stars', em: '🌟', name: 'Звёзды вечеринок', desc: 'Пройди «Вечеринку» до конца' },
+  { id: 'together', em: '👥', name: 'Вместе веселее', desc: 'Сыграй мини-игру вчетвером' },
+  { id: 'gamer', em: '🎮', name: 'Игромания', desc: 'Пройди все 10 мини-игр' },
+];
+const Ach = {
+  done: new Set(Store.get('party_ach', [])),
+  palette: Store.get('party_palette', 0),
+  queue: [], toasting: false,
+  save() { Store.set('party_ach', [...this.done]); },
+  allUnlocked() { return ACHS.every(a => this.done.has(a.id)); },
+  palettesUnlocked() { return this.allUnlocked(); },
+  unlock(id) {
+    if (this.done.has(id) || !ACHS.some(a => a.id === id)) return;
+    const wasAll = this.allUnlocked();
+    this.done.add(id); this.save();
+    this.queue.push(ACHS.find(a => a.id === id)); this.pump();
+    if (!wasAll && this.allUnlocked()) this.queue.push({ em: '🎉', name: 'ВСЁ ОТКРЫТО! Наряды доступны!', desc: '' });
+    updateAchCount();
+  },
+  pump() {
+    if (this.toasting || !this.queue.length) return;
+    const a = this.queue.shift(); this.toasting = true; showAchToast(a);
+    setTimeout(() => { this.toasting = false; this.pump(); }, 2600);
+  },
+  onFinish(game, mode, humanCount, players) {
+    if (game.id === 'vacuumrug') { if (players.some(p => !p.isBot && p.place === 1)) this.unlock('g_vacuumrug'); }
+    else this.unlock('g_' + game.id);
+    if (mode === 'random') this.unlock('fortune');
+    if (humanCount >= 4) this.unlock('together');
+    if (GAMES.every(g => this.done.has('g_' + g.id))) this.unlock('gamer');
+  },
+  onParty() { this.unlock('stars'); },
+  applyPalette(i) {
+    if (i > 0 && !this.palettesUnlocked()) return false;
+    this.palette = i; Store.set('party_palette', i); COLORS = PALETTES[i].colors; refreshThemeColors(); return true;
+  },
+};
+function showAchToast(a) {
+  const t = el('achToast'); if (!t) return;
+  t.innerHTML = '<div class="t1">🏆 Достижение открыто!</div><div class="t2">' + a.em + ' ' + a.name + '</div>';
+  t.classList.add('show');
+  try { Sound.beep(784, 0.12, 'triangle', 0.2); Sound.beep(1047, 0.16, 'triangle', 0.2, undefined); } catch (e) {}
+  clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 2300);
+}
+function updateAchCount() {
+  const c = el('achCount'); if (c) c.textContent = Ach.done.size + '/' + ACHS.length;
+  const b = el('btnAchv'); if (b) b.textContent = '🏆 Достижения ' + Ach.done.size + '/' + ACHS.length;
+}
+function refreshThemeColors() {
+  for (let s = 0; s < 4; s++) { const j = el('joy' + s); if (!j) continue; const base = j.querySelector('.base'), knob = j.querySelector('.knob'); if (base) base.style.borderColor = COLORS[s].css; if (knob) knob.style.background = COLORS[s].css; }
+  document.querySelectorAll('#menu .heroChar').forEach((h, i) => { if (COLORS[i]) h.style.background = COLORS[i].css; });
+}
+function buildAchScreen() {
+  const grid = el('achGrid'); grid.innerHTML = '';
+  ACHS.forEach(a => { const on = Ach.done.has(a.id); const d = document.createElement('div'); d.className = 'achItem' + (on ? ' on' : ''); d.innerHTML = '<div class="ae">' + (on ? a.em : '🔒') + '</div><div class="an">' + a.name + '</div><div class="ad">' + a.desc + '</div>'; grid.appendChild(d); });
+  const unlocked = Ach.palettesUnlocked();
+  el('palLockNote').textContent = unlocked ? 'Все достижения открыты — выбирай наряд! 🎉' : ('Открой все достижения (' + Ach.done.size + '/' + ACHS.length + '), чтобы разблокировать «Радугу» и «Костюмы» 🔒');
+  const row = el('palRow'); row.innerHTML = '';
+  PALETTES.forEach((p, i) => {
+    const locked = i > 0 && !unlocked;
+    const c = document.createElement('button'); c.className = 'palCard' + (Ach.palette === i ? ' sel' : '') + (locked ? ' locked' : '');
+    c.innerHTML = '<div>' + (locked ? '🔒 ' : '') + p.name + '</div><div class="palDots">' + p.colors.map(col => '<span style="background:' + col.css + '"></span>').join('') + '</div>';
+    c.onclick = () => { Sound.click(); if (locked) return; if (Ach.applyPalette(i)) buildAchScreen(); };
+    row.appendChild(c);
+  });
+}
+
 // ======================= ОТЛАДКА =======================
 window.__dbg = {
-  start(gameId, humans, bots) { mode = 'single'; humanCount = humans || 1; useBots = bots !== false; const g = GAMES.find(x => x.id === gameId) || GAMES[0]; buildRoster(); startGame(g); },
+  start(gameId, humans, bots, m) { mode = m || 'single'; humanCount = humans || 1; useBots = bots !== false; const g = GAMES.find(x => x.id === gameId) || GAMES[0]; buildRoster(); startGame(g); },
   begin() { if (curGame) beginPlay(curGame); },
   state: () => ({ state, game: curGame && curGame.id, phase: curGame && curGame.phase, players: players.map(p => ({ id: p.id, alive: p.alive, place: p.place, lives: p.lives })) }),
   force(id) { const p = players.find(x => x.id === id); if (p) eliminate(p); },
   champ(wins) { mode = 'party'; humanCount = 1; useBots = true; buildRoster(); partyWins = wins || { 0: 2, 1: 1, 2: 0, 3: 0 }; curGame = GAMES[0]; showChampion(); },
   pickHuman() { const g = curGame; if (g && g.id === 'dynamite' && g.phase === 'pick' && g.active && !g.active.isBot) { const free = g.pads.find(p => !p.taken); if (free) { g.pick(free); return true; } } return false; },
   GAMES,
+  ach: () => ({ done: [...Ach.done], n: Ach.done.size, all: Ach.allUnlocked(), palette: Ach.palette, unlocked: Ach.palettesUnlocked() }),
+  achUnlockAll: () => { ACHS.forEach(a => Ach.done.add(a.id)); Ach.save(); updateAchCount(); },
+  achReset: () => { Ach.done.clear(); Ach.palette = 0; COLORS = PALETTES[0].colors; Ach.save(); Store.set('party_palette', 0); refreshThemeColors(); updateAchCount(); },
+  setPalette: (i) => Ach.applyPalette(i),
+  colors: () => COLORS.map(c => c.css),
 };
+
+// применить сохранённый наряд и обновить меню
+if (Ach.palette > 0 && Ach.palettesUnlocked()) COLORS = PALETTES[Ach.palette].colors; else Ach.palette = 0;
+refreshThemeColors(); updateAchCount();
 
 // первый кадр
 renderer.render(scene, camera);
