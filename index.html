@@ -48,6 +48,7 @@
   .hidden { display: none !important; }
   #confetti { position: fixed; inset: 0; z-index: 19; pointer-events: none; }
   #fsBtn { position: fixed; top: 10px; right: 10px; z-index: 30; width: 42px; height: 42px; border-radius: 12px; background: #00000055; border: 1px solid #ffffff44; color: #fff; font-size: 20px; cursor: pointer; }
+  #musBtn { position: fixed; top: 10px; right: 60px; z-index: 30; width: 42px; height: 42px; border-radius: 12px; background: #00000055; border: 1px solid #ffffff44; color: #fff; font-size: 18px; cursor: pointer; }
   .btn.red { background: linear-gradient(180deg, #ff6a6a, #e23b3b); color: #fff; box-shadow: 0 6px 0 #a11e1e, 0 10px 20px #0006; }
   #achv { background: radial-gradient(circle at 50% 18%, #7a1f1f, #3d0a0a 60%, #230606); justify-content: flex-start; overflow-y: auto; gap: 10px; }
   .achGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; width: min(760px, 94vw); }
@@ -74,6 +75,7 @@
 <body>
 <div id="err"></div>
 <button id="fsBtn" title="На весь экран">⛶</button>
+<button id="musBtn" title="Музыка">🎵</button>
 
 <!-- ГЛАВНОЕ МЕНЮ -->
 <div id="menu" class="screen">
@@ -281,8 +283,49 @@ const Sound = (() => {
   }
   function slide(f1, f2, dur, type, vol) { if (!ctx) return; const t = ctx.currentTime; const o = ctx.createOscillator(), g = ctx.createGain(); o.type = type || 'sawtooth'; o.frequency.setValueAtTime(f1, t); o.frequency.exponentialRampToValueAtTime(f2, t + dur); g.gain.setValueAtTime(vol || 0.2, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur); o.connect(g); g.connect(master); o.start(t); o.stop(t + dur + 0.03); }
   function noise(dur, vol, hp) { if (!ctx) return; const b = ctx.createBuffer(1, ctx.sampleRate * dur, ctx.sampleRate); const d = b.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length); const s = ctx.createBufferSource(); s.buffer = b; const f = ctx.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = hp || 400; const g = ctx.createGain(); g.gain.value = vol || 0.2; s.connect(f); f.connect(g); g.connect(master); s.start(); }
+
+  // ===== ФОНОВАЯ МУЗЫКА (синтез, зациклено, своя тема на игру) =====
+  const NT = { A2: 110.00, B2: 123.47, C3: 130.81, D3: 146.83, E3: 164.81, F3: 174.61, G3: 196.00, A3: 220.00, B3: 246.94,
+    C4: 261.63, D4: 293.66, E4: 329.63, F4: 349.23, G4: 392.00, A4: 440.00, B4: 493.88,
+    C5: 523.25, D5: 587.33, E5: 659.25, F5: 698.46, G5: 783.99, A5: 880.00, B5: 987.77 };
+  const _tr = (bpm, lead, bass, o = {}) => ({ bpm, lead, bass, wave: o.wave || 'triangle', bassWave: o.bassWave || 'sine', hat: !!o.hat, vol: o.vol || 1 });
+  const TRACKS = {
+    party: _tr(132, ['G4','C5','E5','G5','E5','C5','D5','E5','F5','A5','G5','F5','E5','C5','D5',0], ['C3',0,'C3',0,'F3',0,'F3',0,'G3',0,'G3',0,'C3',0,'G3',0], { hat: 1 }),
+    silly: _tr(126, ['C5',0,'D5',0,'E5','D5','C5',0,'A4',0,'C5',0,'D5',0,'C5',0], ['F3',0,0,0,'C3',0,0,0,'D3',0,0,0,'C3',0,0,0], { wave: 'square', hat: 1, vol: 0.9 }),
+    boom: _tr(120, ['E4',0,'E4','E4','G4',0,'E4',0,'A4',0,'G4',0,'E4',0,0,0], ['A2','A2','A2','A2','A2','A2','A2','A2','A2','A2','A2','A2','A2','A2','A2','A2'], { wave: 'sawtooth', bassWave: 'sawtooth', hat: 1, vol: 0.85 }),
+    spooky: _tr(96, ['A4',0,'C5',0,'B4',0,'A4',0,'E5',0,0,'D5','C5',0,'B4',0], ['A2',0,0,0,'E3',0,0,0,'F3',0,0,0,'E3',0,0,0], { wave: 'sine', vol: 0.9 }),
+    water: _tr(112, ['C5','E5','G5','E5','A4','C5','E5','C5','D5','F5','A5','F5','G5','E5','C5','E5'], ['C3',0,0,0,'A2',0,0,0,'D3',0,0,0,'G3',0,0,0], { wave: 'triangle', vol: 0.9 }),
+    lava: _tr(150, ['A4','C5','D5','E5','G5','E5','D5','C5','A4','C5','D5','E5','D5','C5','A4',0], ['A2',0,'A2',0,'A2',0,'A2',0,'D3',0,'D3',0,'E3',0,'E3',0], { wave: 'sawtooth', bassWave: 'sawtooth', hat: 1, vol: 0.85 }),
+  };
+  let musicGain = null, musicTimer = 0, curTrack = null, mStep = 0, mNext = 0, musicOn = Store.get('party_music', true);
+  function mNote(freq, t, dur, wave, vol) {
+    if (!ctx || !freq) return; const o = ctx.createOscillator(), o2 = ctx.createOscillator(), g = ctx.createGain();
+    o.type = wave; o2.type = wave; o.frequency.value = freq; o2.frequency.value = freq * 1.006;
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(vol, t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); o2.connect(g); g.connect(musicGain); o.start(t); o2.start(t); o.stop(t + dur + 0.03); o2.stop(t + dur + 0.03);
+  }
+  function mHat(t) { if (!ctx) return; const b = ctx.createBuffer(1, (ctx.sampleRate * 0.03) | 0, ctx.sampleRate); const d = b.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length); const s = ctx.createBufferSource(); s.buffer = b; const f = ctx.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = 6500; const g = ctx.createGain(); g.gain.value = 0.05; s.connect(f); f.connect(g); g.connect(musicGain); s.start(t); }
+  function mSchedule() {
+    if (!ctx || !curTrack) return; const tr = curTrack, spb = 60 / tr.bpm / 2;
+    while (mNext < ctx.currentTime + 0.15) {
+      const i = mStep % tr.lead.length, ln = tr.lead[i], bn = tr.bass[i % tr.bass.length];
+      if (ln) mNote(NT[ln] || ln, mNext, spb * 0.9, tr.wave, 0.15 * tr.vol);
+      if (bn) mNote(NT[bn] || bn, mNext, spb * 1.7, tr.bassWave, 0.2 * tr.vol);
+      if (tr.hat && i % 2 === 1) mHat(mNext);
+      mNext += spb; mStep++;
+    }
+  }
+  function startMusic(name) {
+    init(); if (!ctx || !musicOn) return;
+    if (!musicGain) { musicGain = ctx.createGain(); musicGain.gain.value = 0.55; musicGain.connect(master); }
+    const tr = TRACKS[name] || TRACKS.party; if (curTrack === tr && musicTimer) return;
+    stopMusic(); curTrack = tr; mStep = 0; mNext = ctx.currentTime + 0.08; musicTimer = setInterval(mSchedule, 25);
+  }
+  function stopMusic() { if (musicTimer) { clearInterval(musicTimer); musicTimer = 0; } curTrack = null; }
+  function setMusic(on) { musicOn = on; if (!on) stopMusic(); }
+
   return {
-    init, beep, slide, noise,
+    init, beep, slide, noise, startMusic, stopMusic, setMusic, musicIsOn: () => musicOn, musicPlaying: () => !!musicTimer,
     click() { beep(660, 0.06, 'triangle', 0.16); },
     plop() { slide(520, 120, 0.18, 'sine', 0.3); },
     boom() { noise(0.5, 0.5, 120); slide(160, 30, 0.6, 'sawtooth', 0.4); },
@@ -367,6 +410,8 @@ let partyWins = {};
 function goFS() { const e = document.documentElement; const rf = e.requestFullscreen || e.webkitRequestFullscreen; if (rf && !document.fullscreenElement && !document.webkitFullscreenElement) { try { const p = rf.call(e); if (p && p.catch) p.catch(() => {}); } catch (_) {} } }
 function toggleFS() { if (document.fullscreenElement || document.webkitFullscreenElement) { const ex = document.exitFullscreen || document.webkitExitFullscreen; if (ex) try { ex.call(document); } catch (_) {} } else goFS(); }
 el('fsBtn').onclick = toggleFS;
+function updateMusBtn() { const b = el('musBtn'); if (b) b.textContent = Sound.musicIsOn() ? '🎵' : '🔇'; }
+el('musBtn').onclick = () => { Sound.init(); const on = !Sound.musicIsOn(); Sound.setMusic(on); Store.set('party_music', on); if (on && state === 'play' && curGame) Sound.startMusic(MUSIC_FOR[curGame.id] || 'party'); updateMusBtn(); };
 document.addEventListener('fullscreenchange', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
 
 el('btnParty').onclick = () => { Sound.init(); Sound.click(); goFS(); mode = 'party'; goSetup(); };
@@ -401,7 +446,7 @@ function buildGameCards() {
   GAMES.forEach(g => { const c = document.createElement('button'); c.className = 'card'; c.innerHTML = '<div class="em">' + g.emoji + '</div><div class="nm">' + g.title + '</div><div class="ds">' + g.short + '</div>'; c.onclick = () => { Sound.click(); startGame(g); }; box.appendChild(c); });
 }
 el('chooseBack').onclick = () => { Sound.click(); backToMenu(); };
-function backToMenu() { state = 'menu'; curGame = null; stopPlay(); showScreen('menu'); el('hud').classList.add('hidden'); el('hint').classList.add('hidden'); showJoys(false); scene.background = new THREE.Color(0x14243f); }
+function backToMenu() { state = 'menu'; curGame = null; stopPlay(); Sound.stopMusic(); showScreen('menu'); el('hud').classList.add('hidden'); el('hint').classList.add('hidden'); showJoys(false); scene.background = new THREE.Color(0x14243f); }
 
 // ======================= ЗАПУСК МИНИ-ИГРЫ =======================
 function startGame(game) {
@@ -418,6 +463,7 @@ function beginPlay(game) {
   el('hud').classList.remove('hidden'); showJoys(true);
   clearArena(); game.setup();
   updateHud();
+  Sound.startMusic(MUSIC_FOR[game.id] || 'party');
   countdown(() => { game.started = true; });
   loop();
 }
@@ -497,6 +543,7 @@ function finishGame() {
   const winner = players.find(p => p.place === 1);
   if (mode === 'party' && winner) partyWins[winner.id] = (partyWins[winner.id] || 0) + 1;
   Ach.onFinish(curGame, mode, humanCount, players);
+  Sound.stopMusic();
   stopPlay(); showJoys(false); el('hud').classList.add('hidden'); el('hint').classList.add('hidden');
   showResult();
 }
@@ -1335,8 +1382,146 @@ const Paintball = {
   },
 };
 
+// ==========================================================================
+//  МИНИ-ИГРА 11 — 🔥 КОНВЕЙЕР НАД ЛАВОЙ
+// ==========================================================================
+const LavaRun = {
+  id: 'lavarun', title: 'Конвейер над лавой', emoji: '🔥', sound: 'party', hud: 'alive', useJoy: true,
+  short: 'Прыгай через препятствия, беги к финишу!',
+  desc: 'Конвейер тащит в лаву! Ты бежишь сам. Дёргай джойстик ВПЕРЁД, чтобы ПРЫГНУТЬ через препятствие. Не перепрыгнул — отбросит назад, к лаве! Добеги до финиша 🏁',
+  setup() {
+    scene.background = new THREE.Color(0x2a1410); scene.fog.color.set(0x2a1410);
+    this.W = 6; this.finishZ = 120; this.beltSpeed = 3.0; this.runSpeed = 5.6;
+    const beltLen = this.finishZ + 60, beltCz = this.finishZ / 2 - 10;
+    const belt = new THREE.Mesh(new THREE.BoxGeometry(this.W * 2, 0.5, beltLen), new THREE.MeshStandardMaterial({ color: 0x3a3f4a, roughness: .9 })); belt.position.set(0, 0, beltCz); belt.receiveShadow = true; arena.add(belt);
+    this.stripes = [];
+    for (let z = -10; z < this.finishZ + 20; z += 4) { const s = new THREE.Mesh(new THREE.BoxGeometry(this.W * 2, 0.54, 0.5), new THREE.MeshStandardMaterial({ color: 0x2c313b })); s.position.set(0, 0.02, z); arena.add(s); this.stripes.push(s); }
+    for (const ex of [-1, 1]) { const rail = new THREE.Mesh(new THREE.BoxGeometry(0.6, 1.0, beltLen), new THREE.MeshStandardMaterial({ color: 0x556070 })); rail.position.set(ex * (this.W + 0.3), 0.4, beltCz); arena.add(rail); }
+    const line = new THREE.Mesh(new THREE.BoxGeometry(this.W * 2, 0.3, 1.4), new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0x66ff88, emissiveIntensity: .5 })); line.position.set(0, 0.32, this.finishZ); arena.add(line);
+    for (const ex of [-1, 1]) { const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 3, 8), new THREE.MeshStandardMaterial({ color: 0xdddddd })); pole.position.set(ex * this.W, 1.5, this.finishZ); arena.add(pole); const fl = new THREE.Mesh(new THREE.BoxGeometry(1, 0.7, 0.05), new THREE.MeshStandardMaterial({ color: 0x37c85a })); fl.position.set(ex * (this.W - 0.5), 2.4, this.finishZ); arena.add(fl); }
+    const lava = new THREE.Mesh(new THREE.BoxGeometry(this.W * 2 + 8, 1, 30), new THREE.MeshStandardMaterial({ color: 0xff5522, emissive: 0xff3300, emissiveIntensity: .8 })); lava.position.set(0, -0.4, -18); arena.add(lava); this.lavaMesh = lava;
+    this.obstacles = [];
+    for (let z = 14; z < this.finishZ - 6; z += rand(7, 11)) { const ob = new THREE.Mesh(new THREE.BoxGeometry(this.W * 2, 1.1, 0.8), new THREE.MeshStandardMaterial({ color: 0xc0392b, roughness: .6 })); ob.position.set(0, 0.6, z); ob.castShadow = true; arena.add(ob); this.obstacles.push({ mesh: ob, z }); }
+    this.started = false; this.time = 0; this.killZ = -4; this._ended = false; this.finishOrder = []; this.fallen = [];
+    players.forEach((p, i) => {
+      if (!p.mesh) p.mesh = makeChar(p.color.hex); arena.add(p.mesh); p.mesh.scale.setScalar(1);
+      p.alive = true; p.place = 0; p.finished = false; p.fell = false; p.y = 0; p.vy = 0; p.jumping = false; p.jumpArmed = true; p.stun = 0;
+      const n = players.length; p.x = n === 1 ? 0 : -4 + i * (8 / Math.max(1, n - 1)); p.z = 2; p.heading = 0;
+      p.mesh.position.set(p.x, 0, p.z); p.mesh.visible = true; p.mesh.rotation.set(0, 0, 0);
+    });
+    aimCamera({ x: 0, y: 11, z: -14 }, { x: 0, y: 1, z: 8 });
+    el('hint').classList.remove('hidden'); el('hint').textContent = 'Дёргай ВПЕРЁД, чтобы прыгнуть! 🔥 Беги к финишу!';
+    updateHud();
+  },
+  update(dt) {
+    this.time += dt; this.killZ += this.beltSpeed * dt;
+    this.lavaMesh.material.emissiveIntensity = 0.6 + Math.sin(this.time * 4) * 0.2;
+    for (const s of this.stripes) { s.position.z -= this.beltSpeed * dt; if (s.position.z < this.killZ - 6) s.position.z += Math.ceil((this.finishZ + 26) / 4) * 4; }
+    let leadZ = this.killZ + 6;
+    for (const p of players) {
+      if (!p.alive || p.finished) continue;
+      let ix = 0, fwd = 0;
+      if (p.isBot) { if (!p.jumping && p.stun <= 0) { for (const o of this.obstacles) { const d = o.z - p.z; if (d > 0.4 && d < 2.4) { if (Math.random() < 0.86) fwd = 1; break; } } } p.jumpArmed = !p.jumping; }
+      else { const inp = humanInput(p.seat); ix = inp.ix; if (inp.iy < -0.45) fwd = 1; if (inp.iy > -0.2) p.jumpArmed = true; }
+      if (p.stun > 0) p.stun -= dt; else p.z += this.runSpeed * dt;
+      p.z -= this.beltSpeed * dt * 0.5;
+      p.x = clamp(p.x + ix * 6 * dt, -this.W + 0.5, this.W - 0.5);
+      if (fwd && !p.jumping && p.jumpArmed && p.stun <= 0) { p.jumping = true; p.vy = 7.2; p.jumpArmed = false; Sound.beep(600, 0.1, 'square', 0.12); }
+      if (p.jumping) { p.vy -= 22 * dt; p.y += p.vy * dt; if (p.y <= 0) { p.y = 0; p.jumping = false; p.vy = 0; } }
+      if (!p.jumping && p.y < 0.5 && p.stun <= 0) { for (const o of this.obstacles) { if (Math.abs(o.z - p.z) < 0.7) { p.z -= 2.2; p.stun = 0.35; Sound.slide(300, 80, 0.3, 'sawtooth', 0.18); shake(0.35); break; } } }
+      const ud = p.mesh.userData; if (ud && ud.legs) { ud.walk += dt * (p.stun > 0 ? 3 : 14); const sw = Math.sin(ud.walk) * 0.5; ud.legs[0].rotation.x = sw; ud.legs[1].rotation.x = -sw; ud.arms[0].rotation.x = -sw * 0.8; ud.arms[1].rotation.x = sw * 0.8; }
+      p.mesh.position.set(p.x, p.y, p.z); p.mesh.rotation.y = 0;
+      if (p.z <= this.killZ) { p.fell = true; p.alive = false; this.fallen.push(p); const pm = p.mesh; fx.push({ mesh: null, life: 1, t: 0, fn: (d2, f) => { pm.position.y -= 6 * d2; pm.rotation.x += 5 * d2; } }); Sound.sad(); updateHud(); this.checkEnd(); continue; }
+      if (p.z >= this.finishZ) { p.finished = true; this.finishOrder.push(p); Sound.beep(950, 0.2, 'triangle', 0.2); updateHud(); this.checkEnd(); continue; }
+      if (p.z > leadZ) leadZ = p.z;
+    }
+    const camZ = leadZ; camera.position.set(0, 11, camZ - 14); camTarget.set(0, 1, camZ + 8); camera.lookAt(camTarget); camBasePos.set(0, 11, camZ - 14);
+    this.lavaMesh.position.z = this.killZ - 15;
+    if (this.time > 60) this.end();
+  },
+  checkEnd() { if (players.every(p => p.finished || p.fell)) this.end(); },
+  end() {
+    if (this._ended) return; this._ended = true;
+    const alive = players.filter(p => !p.finished && !p.fell).sort((a, b) => b.z - a.z);
+    const order = [...this.finishOrder, ...alive, ...[...this.fallen].reverse()];
+    order.forEach((p, i) => p.place = i + 1);
+    curGame.started = false; setTimeout(() => { if (state === 'play') finishGame(); }, 600);
+  },
+};
+
+// ==========================================================================
+//  МИНИ-ИГРА 12 — 🟪 ЦВЕТНЫЕ ПЛАТФОРМЫ
+// ==========================================================================
+const ColorDrop = {
+  id: 'colordrop', title: 'Цветные платформы', emoji: '🟪', sound: 'party', hud: 'alive',
+  short: 'Уйди с перечёркнутого цвета! Толкайся!',
+  desc: 'Пол из цветных платформ. Появится табличка с ПЕРЕЧЁРКНУТЫМ цветом ❌ — платформы этого цвета сейчас упадут! Успей на другой цвет. Можно толкаться, как в сумо. Последний — чемпион!',
+  setup() {
+    scene.background = new THREE.Color(0x1a1030); scene.fog.color.set(0x1a1030);
+    const abyss = new THREE.Mesh(new THREE.CylinderGeometry(40, 40, 0.4, 40), new THREE.MeshStandardMaterial({ color: 0x0a0618 })); abyss.position.y = -3; arena.add(abyss);
+    aimCamera({ x: 0, y: 22, z: 16 }, { x: 0, y: 0, z: 0 });
+    this.palette = [{ hex: 0xe23b3b, name: 'КРАСНЫЕ' }, { hex: 0x3b7bff, name: 'СИНИЕ' }, { hex: 0xffcf33, name: 'ЖЁЛТЫЕ' }, { hex: 0x37c85a, name: 'ЗЕЛЁНЫЕ' }, { hex: 0xb060e0, name: 'ФИОЛЕТОВЫЕ' }];
+    this.tiles = []; this.cell = 2.6; const n = 7, off = (n - 1) / 2 * this.cell;
+    for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) { const x = c * this.cell - off, z = r * this.cell - off; if (Math.hypot(x, z) > off + 1.4) continue; const ci = Math.floor(Math.random() * this.palette.length); const t = new THREE.Mesh(new THREE.BoxGeometry(this.cell * 0.92, 0.5, this.cell * 0.92), new THREE.MeshStandardMaterial({ color: this.palette[ci].hex, roughness: .7 })); t.position.set(x, 0.25, z); t.castShadow = true; t.receiveShadow = true; arena.add(t); this.tiles.push({ mesh: t, x, z, ci, state: 'solid', y: 0.25 }); }
+    this.started = false; this.time = 0; this.phase = 'safe'; this.warnT = 2.6; this.phaseT = 0; this.dropCi = -1;
+    players.forEach((p, i) => { if (!p.mesh) p.mesh = makeChar(p.color.hex); arena.add(p.mesh); p.mesh.scale.setScalar(1); p.alive = true; p.place = 0; p.fell = false; p.vx = 0; p.vz = 0; const t = this.tiles[Math.floor(this.tiles.length * (i + 0.5) / players.length)]; p.x = t.x; p.z = t.z; p.heading = 0; p.mesh.position.set(p.x, 0, p.z); p.mesh.visible = true; p.mesh.rotation.set(0, 0, 0); });
+    this.signGroup = new THREE.Group(); this.signGroup.visible = false; arena.add(this.signGroup);
+    this.signPlate = new THREE.Mesh(new THREE.BoxGeometry(3, 3, 0.2), new THREE.MeshStandardMaterial({ color: 0xffffff })); this.signGroup.add(this.signPlate);
+    for (const rot of [Math.PI / 4, -Math.PI / 4]) { const bar = new THREE.Mesh(new THREE.BoxGeometry(4, 0.5, 0.3), new THREE.MeshStandardMaterial({ color: 0x1a1a1a })); bar.rotation.z = rot; bar.position.z = 0.2; this.signGroup.add(bar); }
+    this.signGroup.position.set(0, 7, 0); this.signGroup.rotation.x = -0.5;
+    el('hint').classList.remove('hidden'); el('hint').textContent = 'Уходи с платформы, если её цвет перечеркнут ❌';
+    updateHud();
+  },
+  tileAt(x, z) { let best = null, bd = this.cell * 0.6; for (const t of this.tiles) { if (t.state === 'gone') continue; const d = Math.hypot(t.x - x, t.z - z); if (d < bd) { bd = d; best = t; } } return best; },
+  update(dt) {
+    this.time += dt;
+    if (this.phase === 'safe') {
+      this.warnT -= dt;
+      if (this.warnT <= 0) {
+        const present = [...new Set(this.tiles.filter(t => t.state === 'solid').map(t => t.ci))];
+        if (present.length <= 1) { this.warnT = 1.0; }
+        else { this.dropCi = present[Math.floor(Math.random() * present.length)]; this.phase = 'warn'; this.phaseT = Math.max(1.0, 2.2 - this.time * 0.03); this.signPlate.material.color.setHex(this.palette[this.dropCi].hex); this.signGroup.visible = true; el('hint').textContent = '❌ ' + this.palette[this.dropCi].name + ' сейчас упадут!'; Sound.beep(300, 0.2, 'square', 0.16); }
+      }
+    } else if (this.phase === 'warn') {
+      this.phaseT -= dt; this.signGroup.rotation.z = Math.sin(this.time * 10) * 0.06; this.signGroup.position.y = 7 + Math.sin(this.time * 6) * 0.2;
+      for (const t of this.tiles) { if (t.state === 'solid' && t.ci === this.dropCi) t.mesh.position.y = 0.25 + Math.sin(this.time * 22) * 0.09; }
+      if (this.phaseT <= 0) { this.tiles.forEach(t => { if (t.state === 'solid' && t.ci === this.dropCi) t.state = 'drop'; }); this.signGroup.visible = false; this.phase = 'drop'; Sound.slide(400, 60, 0.5, 'sawtooth', 0.2); shake(0.5); }
+    } else if (this.phase === 'drop') {
+      let any = false;
+      for (const t of this.tiles) { if (t.state === 'drop') { any = true; t.y -= 6 * dt; t.mesh.position.y = t.y; t.mesh.rotation.x += dt * 2; if (t.y < -2) { t.state = 'gone'; t.mesh.visible = false; } } }
+      if (!any) { this.phase = 'safe'; this.warnT = Math.max(1.2, 2.6 - this.time * 0.04); el('hint').textContent = 'Готовься к следующему цвету...'; }
+    }
+    for (const p of players) {
+      if (!p.alive) continue;
+      let ax = 0, az = 0;
+      if (p.isBot) {
+        const danger = (this.phase === 'warn' || this.phase === 'drop'), cur = this.tileAt(p.x, p.z);
+        if (danger && cur && (cur.ci === this.dropCi || cur.state !== 'solid')) { let t = null, nd = 1e9; for (const q of this.tiles) { if (q.state !== 'solid' || q.ci === this.dropCi) continue; const d = dist2(p.x, p.z, q.x, q.z); if (d < nd) { nd = d; t = q; } } if (t) { ax = t.x - p.x; az = t.z - p.z; const L = Math.hypot(ax, az) || 1; ax /= L; az /= L; } }
+        else { ax = Math.sin(this.time * 1.3 + p.id) * 0.4; az = Math.cos(this.time * 1.1 + p.id) * 0.4; }
+      } else { const inp = humanInput(p.seat); const w = screenToWorld(inp.ix, inp.iy); ax = w.x; az = w.z; }
+      p.vx += ax * 20 * dt; p.vz += az * 20 * dt; p.vx *= 0.9; p.vz *= 0.9;
+      const sp = Math.hypot(p.vx, p.vz); if (sp > 8) { p.vx = p.vx / sp * 8; p.vz = p.vz / sp * 8; }
+      p.x += p.vx * dt; p.z += p.vz * dt; if (sp > 0.3) p.heading = Math.atan2(p.vx, p.vz);
+    }
+    for (let i = 0; i < players.length; i++) for (let j = i + 1; j < players.length; j++) { const a = players[i], b = players[j]; if (!a.alive || !b.alive) continue; const dx = b.x - a.x, dz = b.z - a.z, d = Math.hypot(dx, dz), min = 1.5; if (d < min && d > 0.001) { const nx = dx / d, nz = dz / d, push = (min - d) / 2; a.x -= nx * push; a.z -= nz * push; b.x += nx * push; b.z += nz * push; const rel = (b.vx - a.vx) * nx + (b.vz - a.vz) * nz, imp = -rel * 0.8 + 3; a.vx -= nx * imp; a.vz -= nz * imp; b.vx += nx * imp; b.vz += nz * imp; Sound.beep(280, 0.05, 'square', 0.07); } }
+    for (const p of players) {
+      if (!p.alive || p.fell) continue; const t = this.tileAt(p.x, p.z);
+      p.mesh.position.set(p.x, 0, p.z); p.mesh.rotation.y = p.heading;
+      if (!t || t.state === 'gone' || (t.state === 'drop' && t.y < -0.3)) { p.fell = true; const pm = p.mesh; fx.push({ mesh: null, life: 1, t: 0, fn: (d2, f) => { pm.position.y -= 7 * d2; pm.rotation.z += 4 * d2; } }); Sound.slide(300, 60, 0.5, 'sawtooth', 0.2); eliminate(p); }
+    }
+    // страховка от зависания: после 55 сек убираем крайнего игрока каждый кадр
+    if (this.time > 55) { const al = players.filter(p => p.alive); if (al.length > 1) { let worst = al[0]; for (const p of al) if (Math.hypot(p.x, p.z) > Math.hypot(worst.x, worst.z)) worst = p; const pm = worst.mesh; fx.push({ mesh: null, life: 1, t: 0, fn: (d2, f) => { pm.position.y -= 7 * d2; } }); eliminate(worst); } }
+  },
+};
+
 // список игр
-const GAMES = [Dynamite, PoopStorm, Sumo, Lava, VacuumRug, RedLight, Waterfall, Flags, MazeTag, Paintball];
+const GAMES = [Dynamite, PoopStorm, Sumo, Lava, VacuumRug, RedLight, Waterfall, Flags, MazeTag, Paintball, LavaRun, ColorDrop];
+// какая музыкальная тема играет в какой мини-игре
+const MUSIC_FOR = {
+  dynamite: 'boom', poopstorm: 'silly', sumo: 'party', lava: 'lava', vacuumrug: 'party',
+  redlight: 'spooky', waterfall: 'water', flags: 'party', mazetag: 'spooky', paintball: 'party',
+  lavarun: 'lava', colordrop: 'lava',
+};
 
 // ======================= ДОСТИЖЕНИЯ + НАРЯДЫ =======================
 // по одному достижению на каждую мини-игру (id = 'g_'+id игры) + 4 особых
@@ -1351,10 +1536,12 @@ const ACHS = [
   { id: 'g_flags', em: '🚩', name: 'Зоркий глаз', desc: 'Пройди «Флажки»' },
   { id: 'g_mazetag', em: '👻', name: 'Неуловимые', desc: 'Пройди «Прятки: Вода»' },
   { id: 'g_paintball', em: '🎨', name: 'Меткий стрелок', desc: 'Пройди «Пейнтбол»' },
+  { id: 'g_lavarun', em: '🔥', name: 'Прыг-скок над лавой', desc: 'Добеги до финиша в «Конвейер над лавой»' },
+  { id: 'g_colordrop', em: '🟪', name: 'Верный цвет', desc: 'Пройди «Цветные платформы»' },
   { id: 'fortune', em: '🎲', name: 'Колесо фортуны', desc: 'Сыграй в случайную мини-игру' },
   { id: 'stars', em: '🌟', name: 'Звёзды вечеринок', desc: 'Пройди «Вечеринку» до конца' },
   { id: 'together', em: '👥', name: 'Вместе веселее', desc: 'Сыграй мини-игру вчетвером' },
-  { id: 'gamer', em: '🎮', name: 'Игромания', desc: 'Пройди все 10 мини-игр' },
+  { id: 'gamer', em: '🎮', name: 'Игромания', desc: 'Пройди все 12 мини-игр' },
 ];
 const Ach = {
   done: new Set(Store.get('party_ach', [])),
@@ -1433,11 +1620,13 @@ window.__dbg = {
   achReset: () => { Ach.done.clear(); Ach.palette = 0; COLORS = PALETTES[0].colors; Ach.save(); Store.set('party_palette', 0); refreshThemeColors(); updateAchCount(); },
   setPalette: (i) => Ach.applyPalette(i),
   colors: () => COLORS.map(c => c.css),
+  music: () => ({ on: Sound.musicIsOn(), playing: Sound.musicPlaying() }),
+  toMenu: () => backToMenu(),
 };
 
 // применить сохранённый наряд и обновить меню
 if (Ach.palette > 0 && Ach.palettesUnlocked()) COLORS = PALETTES[Ach.palette].colors; else Ach.palette = 0;
-refreshThemeColors(); updateAchCount();
+refreshThemeColors(); updateAchCount(); updateMusBtn();
 
 // первый кадр
 renderer.render(scene, camera);
