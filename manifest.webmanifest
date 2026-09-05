@@ -1,7 +1,7 @@
 {
   "name": "Вечеринка чемпионов",
   "short_name": "Вечеринка",
-  "description": "Мини-игры для 2–4 друзей (или с ботами). Кто чаще побеждает — тот чемпион! 🏆",
+  "description": "Пати-игра на 2–4 игроков: 12 мини-игр, обучение перед каждой, наряды и достижения. 🎉",
   "lang": "ru",
   "start_url": "./index.html",
   "scope": "./",
@@ -10,9 +10,9 @@
     "fullscreen",
     "standalone"
   ],
-  "orientation": "any",
-  "background_color": "#0c1226",
-  "theme_color": "#1b7a2e",
+  "orientation": "landscape",
+  "background_color": "#14243f",
+  "theme_color": "#14243f",
   "icons": [
     {
       "src": "icon-192.png",

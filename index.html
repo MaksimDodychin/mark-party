@@ -41,6 +41,18 @@
   .joy .base { position: absolute; inset: 0; border-radius: 50%; background: #ffffff14; border: 3px solid; }
   .joy .knob { position: absolute; width: 52px; height: 52px; left: 32px; top: 32px; border-radius: 50%; box-shadow: 0 4px 10px #0007; }
   #joy0 { left: 12px; bottom: 12px; } #joy1 { right: 12px; bottom: 12px; } #joy2 { left: 12px; top: 12px; } #joy3 { right: 12px; top: 12px; }
+  /* обучение перед мини-игрой */
+  #tut .card2 { background: #0b1220dd; border: 2px solid #ffffff22; border-radius: 20px; padding: 20px 24px; max-width: 560px; box-shadow: 0 12px 40px #0009; }
+  #tutCtrl { margin-top: 10px; font-size: 15px; color: #8fe9ff; font-weight: 800; }
+  #tutSlots { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-top: 18px; }
+  .rslot { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 14px; border-radius: 14px; background: #ffffff10; border: 2px solid; min-width: 90px; transition: transform .12s; }
+  .rslot.on { background: #1c7a3a55; transform: translateY(-3px); }
+  .rslot .who { font-size: 15px; font-weight: 900; }
+  .rslot .st { font-size: 26px; }
+  .rbtn { position: fixed; width: 110px; height: 110px; border-radius: 24px; z-index: 16; display: none; align-items: center; justify-content: center; flex-direction: column; font-weight: 900; color: #fff; border: 4px solid #fff8; font-size: 15px; box-shadow: 0 8px 20px #0007; cursor: pointer; }
+  .rbtn .big { font-size: 34px; }
+  .rbtn.ready { filter: saturate(1.4) brightness(1.15); box-shadow: 0 0 0 4px #fff6, 0 8px 20px #0009; }
+  #rdy0 { left: 12px; bottom: 12px; } #rdy1 { right: 12px; bottom: 12px; } #rdy2 { left: 12px; top: 12px; } #rdy3 { right: 12px; top: 12px; }
   .resTable { background: #00000066; border-radius: 16px; padding: 10px 6px; min-width: 300px; }
   .resRow { display: flex; align-items: center; gap: 12px; padding: 9px 16px; font-size: 19px; font-weight: 700; border-radius: 10px; }
   .resRow .pl { font-size: 24px; width: 40px; } .resRow .dot { width: 22px; height: 22px; border-radius: 50%; }
@@ -65,12 +77,17 @@
 </style>
 
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="icon" type="image/png" href="icon-192.png">
-  <meta name="theme-color" content="#1b7a2e">
+  <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
+  <link rel="shortcut icon" type="image/png" href="icon-192.png">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Вечеринка чемпионов">
-  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+  <link rel="apple-touch-icon-precomposed" sizes="180x180" href="apple-touch-icon.png">
+  <meta name="msapplication-TileImage" content="icon-192.png">
+  <meta name="msapplication-TileColor" content="#14243f">
+  <script>window.__APP_VER = "184765a6ba";</script>
 </head>
 <body>
 <div id="err"></div>
@@ -131,6 +148,23 @@
   <div class="sub" id="introDesc"></div>
   <div id="introRound" class="sub" style="color:#ffd23b;font-weight:800"></div>
 </div>
+
+<!-- ОБУЧЕНИЕ перед мини-игрой -->
+<div id="tut" class="screen hidden" style="background:#050a16ee">
+  <div class="card2">
+    <div style="font-size:70px" id="tutEmoji"></div>
+    <h1 id="tutName" style="margin:.1em 0"></h1>
+    <div id="tutRound" class="sub" style="color:#ffd23b;font-weight:800"></div>
+    <div class="sub" id="tutDesc" style="font-size:16px;line-height:1.5"></div>
+    <div id="tutCtrl"></div>
+  </div>
+  <div id="tutReadyHint" class="sub" style="margin-top:14px;font-weight:800">Все игроки, подтвердите готовность 👇</div>
+  <div id="tutSlots"></div>
+</div>
+<button class="rbtn" id="rdy0" style="background:#e23b3b"><span class="big">👍</span>ГОТОВ</button>
+<button class="rbtn" id="rdy1" style="background:#3b7bff"><span class="big">👍</span>ГОТОВ</button>
+<button class="rbtn" id="rdy2" style="background:#ffcf33;color:#222"><span class="big">👍</span>ГОТОВ</button>
+<button class="rbtn" id="rdy3" style="background:#37c85a"><span class="big">👍</span>ГОТОВ</button>
 
 <!-- ИТОГ -->
 <div id="result" class="screen hidden" style="background:#000000dd">
@@ -196,6 +230,10 @@ const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(2, devicePixelRatio));
 renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;          // мягкие тени
+renderer.toneMapping = THREE.ACESFilmicToneMapping;        // кинематографичный свет
+renderer.toneMappingExposure = 1.05;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
 document.body.insertBefore(renderer.domElement, document.body.firstChild);
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x14243f);
@@ -212,9 +250,13 @@ function aimCamera(pos, target) {
 function shake(a) { shakeAmt = Math.max(shakeAmt, a); }
 addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
 
-scene.add(new THREE.HemisphereLight(0xffffff, 0x44405a, 0.95));
-const sun = new THREE.DirectionalLight(0xfff2d0, 1.1); sun.position.set(12, 26, 10); sun.castShadow = true;
-sun.shadow.mapSize.set(1024, 1024); sun.shadow.camera.left = -30; sun.shadow.camera.right = 30; sun.shadow.camera.top = 30; sun.shadow.camera.bottom = -30; scene.add(sun);
+scene.add(new THREE.HemisphereLight(0xcfe4ff, 0x3a3450, 1.0));
+const sun = new THREE.DirectionalLight(0xfff2d0, 1.35); sun.position.set(12, 26, 10); sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048); sun.shadow.camera.left = -30; sun.shadow.camera.right = 30; sun.shadow.camera.top = 30; sun.shadow.camera.bottom = -30;
+sun.shadow.bias = -0.0004; sun.shadow.radius = 3; scene.add(sun);
+// заполняющий контровой свет — объём и «дорогая» картинка
+const fill = new THREE.DirectionalLight(0x9ab8ff, 0.4); fill.position.set(-14, 12, -12); scene.add(fill);
+const rim = new THREE.DirectionalLight(0xffd9a8, 0.35); rim.position.set(-6, 8, 16); scene.add(rim);
 
 // общий пол/арена (пересобирается под игру)
 let arena = new THREE.Group(); scene.add(arena);
@@ -225,10 +267,18 @@ function makeGround(color, size) {
 }
 
 // ======================= ЧЕЛОВЕЧЕК (настоящий, с головой/руками/ногами) =======================
+// 🥇 палитра «Костюмы» теперь по-настоящему МЕТАЛЛИЧЕСКАЯ и блестящая (просьба Марка)
+function isMetalSkin() { return typeof Ach !== 'undefined' && Ach.palette === 2; }
+function teamMat(hex) {
+  // без карты окружения чистый металл выглядит чёрным → metalness 0.7 + блик от солнца + подсветка цветом
+  return isMetalSkin()
+    ? new THREE.MeshStandardMaterial({ color: hex, metalness: 0.7, roughness: 0.2, emissive: new THREE.Color(hex).multiplyScalar(0.3) })
+    : new THREE.MeshStandardMaterial({ color: hex, roughness: .5 });
+}
 function makeChar(hex) {
   const g = new THREE.Group();
   const skin = new THREE.MeshStandardMaterial({ color: 0xffd2a6, roughness: .6 });
-  const team = new THREE.MeshStandardMaterial({ color: hex, roughness: .5 });
+  const team = teamMat(hex);
   const pants = new THREE.MeshStandardMaterial({ color: 0x37415e, roughness: .75 });
   const shoe = new THREE.MeshStandardMaterial({ color: 0x1c2030, roughness: .6 });
   const legs = [];
@@ -351,7 +401,8 @@ const KEYMAP = [
   { up: ['Digit8', 'Numpad8'], down: ['Digit5', 'Numpad5'], left: ['Digit4', 'Numpad4'], right: ['Digit6', 'Numpad6'] },
 ];
 const keys = new Set();
-addEventListener('keydown', e => { keys.add(e.code); if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault(); });
+addEventListener('keydown', e => { keys.add(e.code); if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
+  if (state === 'tut') { const s = seatOfKey(e.code); if (s >= 0) setReady(s); } });
 addEventListener('keyup', e => keys.delete(e.code));
 
 // джойстики (по одному на угол = на игрока-человека)
@@ -391,7 +442,7 @@ let curGame = null;        // объект активной мини-игры
 let partyList = [], partyIdx = 0;
 let raf = 0;
 
-function showScreen(id) { ['menu', 'setup', 'choose', 'achv', 'intro', 'result'].forEach(s => el(s).classList.toggle('hidden', s !== id)); }
+function showScreen(id) { ['menu', 'setup', 'choose', 'achv', 'intro', 'tut', 'result'].forEach(s => el(s).classList.toggle('hidden', s !== id)); }
 function hideAllScreens() { showScreen('___none'); }
 
 function buildRoster() {
@@ -446,7 +497,8 @@ function buildGameCards() {
   GAMES.forEach(g => { const c = document.createElement('button'); c.className = 'card'; c.innerHTML = '<div class="em">' + g.emoji + '</div><div class="nm">' + g.title + '</div><div class="ds">' + g.short + '</div>'; c.onclick = () => { Sound.click(); startGame(g); }; box.appendChild(c); });
 }
 el('chooseBack').onclick = () => { Sound.click(); backToMenu(); };
-function backToMenu() { state = 'menu'; curGame = null; stopPlay(); Sound.stopMusic(); showScreen('menu'); el('hud').classList.add('hidden'); el('hint').classList.add('hidden'); showJoys(false); scene.background = new THREE.Color(0x14243f); }
+function backToMenu() { state = 'menu'; curGame = null; stopPlay(); Sound.stopMusic(); showScreen('menu'); el('hud').classList.add('hidden'); el('hint').classList.add('hidden'); showJoys(false); showReadyButtons(false); scene.background = new THREE.Color(0x14243f); }
+for (let s = 0; s < 4; s++) { const b = el('rdy' + s); if (b) { b.onpointerdown = ev => { ev.preventDefault(); Sound.init(); setReady(s); }; } }
 
 // ======================= ЗАПУСК МИНИ-ИГРЫ =======================
 function startGame(game) {
@@ -456,10 +508,74 @@ function startGame(game) {
   el('introEmoji').textContent = game.emoji; el('introName').textContent = game.title; el('introDesc').textContent = game.desc;
   el('introRound').textContent = mode === 'party' ? ('Вечеринка: игра ' + (partyIdx + 1) + ' из 3') : '';
   Sound.init(); Sound.intro(game.sound);
-  setTimeout(() => { if (state === 'intro') beginPlay(game); }, 2400);
+  setTimeout(() => { if (state === 'intro') startTutorial(game); }, 2000);
+}
+
+// ======================= ОБУЧЕНИЕ + ГОТОВНОСТЬ ВСЕХ ИГРОКОВ =======================
+let readySeats = new Set(), tutAuto = false;   // tutAuto: только для автотестов (вход через __dbg.start)
+function controlsText(game) {
+  const touch = matchMedia('(pointer:coarse)').matches;
+  if (game.useJoy === false) return touch ? '🎮 Как играть: тапай пальцем по экрану' : '🎮 Как играть: мышкой / тапом';
+  if (touch) return '🎮 Управление: твой джойстик в углу экрана';
+  const map = ['WASD', 'Стрелки', 'IJKL', '8-4-5-6'];
+  return '🎮 Клавиши: ' + map.slice(0, humanCount).map((m, i) => 'Игрок ' + (i + 1) + ' — ' + m).join('  ·  ');
+}
+function buildReadySlots() {
+  const box = el('tutSlots'); box.innerHTML = '';
+  for (let s = 0; s < humanCount; s++) {
+    const c = COLORS[s] || COLORS[0];
+    const d = document.createElement('div'); d.className = 'rslot'; d.id = 'rslot' + s;
+    d.style.borderColor = c.css;
+    d.innerHTML = '<div class="who" style="color:' + c.css + '">Игрок ' + (s + 1) + '</div><div class="st">⏳</div>' +
+      '<div style="font-size:12px;opacity:.8">' + (matchMedia('(pointer:coarse)').matches ? 'жми 👍 в углу' : 'нажми свою клавишу') + '</div>';
+    d.onclick = () => setReady(s);        // и по слоту можно ткнуть (мышкой/пальцем)
+    box.appendChild(d);
+  }
+}
+function showReadyButtons(on) {
+  const touch = matchMedia('(pointer:coarse)').matches;
+  for (let s = 0; s < 4; s++) el('rdy' + s).style.display = (on && touch && s < humanCount) ? 'flex' : 'none';
+}
+function startTutorial(game) {
+  state = 'tut'; showScreen('tut');
+  el('tutEmoji').textContent = game.emoji;
+  el('tutName').textContent = game.title;
+  el('tutRound').textContent = mode === 'party' ? ('🎉 Вечеринка: игра ' + (partyIdx + 1) + ' из 3') : '';
+  el('tutDesc').textContent = game.desc;
+  el('tutCtrl').textContent = controlsText(game);
+  readySeats = new Set();
+  buildReadySlots();
+  showReadyButtons(true);
+  updateReadyHint();
+  if (tutAuto) setTimeout(() => { for (let s = 0; s < humanCount; s++) setReady(s); }, 250);
+}
+function setReady(seat) {
+  if (state !== 'tut' || seat >= humanCount || readySeats.has(seat)) return;
+  readySeats.add(seat);
+  const sl = el('rslot' + seat); if (sl) { sl.classList.add('on'); sl.querySelector('.st').textContent = '✅'; }
+  const rb = el('rdy' + seat); if (rb) rb.classList.add('ready');
+  Sound.beep(560 + seat * 90, 0.12, 'triangle', 0.18);
+  updateReadyHint();
+  if (readySeats.size >= humanCount) {           // все подтвердили — поехали!
+    el('tutReadyHint').textContent = '🚀 Все готовы!';
+    showReadyButtons(false);
+    setTimeout(() => { if (state === 'tut') beginPlay(curGame); }, 500);
+  }
+}
+function updateReadyHint() {
+  if (readySeats.size >= humanCount) return;
+  el('tutReadyHint').textContent = 'Готовы: ' + readySeats.size + ' из ' + humanCount + ' 👇';
+}
+function seatOfKey(code) {
+  for (let s = 0; s < humanCount; s++) {
+    const km = KEYMAP[s];
+    if (km.up.concat(km.down, km.left, km.right).includes(code)) return s;
+  }
+  if (humanCount === 1 && (code === 'Space' || code === 'Enter')) return 0;
+  return -1;
 }
 function beginPlay(game) {
-  showScreen('___none'); state = 'play';
+  showScreen('___none'); state = 'play'; showReadyButtons(false);
   el('hud').classList.remove('hidden'); showJoys(true);
   clearArena(); game.setup();
   updateHud();
@@ -1608,8 +1724,12 @@ function buildAchScreen() {
 
 // ======================= ОТЛАДКА =======================
 window.__dbg = {
-  start(gameId, humans, bots, m) { mode = m || 'single'; humanCount = humans || 1; useBots = bots !== false; const g = GAMES.find(x => x.id === gameId) || GAMES[0]; buildRoster(); startGame(g); },
+  start(gameId, humans, bots, m) { tutAuto = true; mode = m || 'single'; humanCount = humans || 1; useBots = bots !== false; const g = GAMES.find(x => x.id === gameId) || GAMES[0]; buildRoster(); startGame(g); },
   begin() { if (curGame) beginPlay(curGame); },
+  tut: () => ({ state, ready: [...readySeats], need: humanCount }),
+  noAuto() { tutAuto = false; },
+  rush() { if (curGame) { curGame.time = (curGame.time || 0) + 1000; } return curGame && curGame.time; },
+  ready(seat) { if (seat === undefined) { for (let s = 0; s < humanCount; s++) setReady(s); } else setReady(seat); return [...readySeats]; },
   state: () => ({ state, game: curGame && curGame.id, phase: curGame && curGame.phase, players: players.map(p => ({ id: p.id, alive: p.alive, place: p.place, lives: p.lives })) }),
   force(id) { const p = players.find(x => x.id === id); if (p) eliminate(p); },
   champ(wins) { mode = 'party'; humanCount = 1; useBots = true; buildRoster(); partyWins = wins || { 0: 2, 1: 1, 2: 0, 3: 0 }; curGame = GAMES[0]; showChampion(); },
@@ -1632,6 +1752,62 @@ refreshThemeColors(); updateAchCount(); updateMusBtn();
 renderer.render(scene, camera);
 </script>
 
-<script>if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));}</script>
+<script>
+// Игра стартует МГНОВЕННО из памяти телефона и работает без интернета.
+// Если интернет есть — проверяем крошечный version.json и обновляемся сами.
+(function () {
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(function(){}));
+  }
+  function баннер(текст) {
+    var d = document.getElementById('updBanner');
+    if (!d) { d = document.createElement('div'); d.id = 'updBanner';
+      d.style.cssText = 'position:fixed;left:50%;top:12px;transform:translateX(-50%);z-index:99999;' +
+        'background:#0b1220ee;color:#7dd3fc;font:900 15px system-ui;padding:10px 18px;border-radius:14px;' +
+        'border:2px solid #7dd3fc55;box-shadow:0 8px 24px #0009';
+      document.body.appendChild(d); }
+    d.textContent = текст;
+    return d;
+  }
+  async function applyUpdate() {
+    баннер('🔄 Обновляю игру…');
+    try {
+      const ks = await caches.keys();
+      await Promise.all(ks.map(function (k) { return caches.delete(k); }));
+      if ('serviceWorker' in navigator) {
+        const rs = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(rs.map(function (r) { return r.unregister(); }));
+      }
+    } catch (_) {}
+    // ⚠️ Простой location.reload() может взять СТАРЫЙ html из кэша браузера,
+    // и обновление «не приходит» (жалоба Марка 23.08). Перезагружаемся по новому адресу.
+    setTimeout(function () {
+      location.replace(location.pathname + '?v=' + Date.now());
+    }, 400);
+  }
+  window.__forceUpdate = applyUpdate;
+  async function checkVersion(показать) {
+    try {
+      const r = await fetch('version.json?t=' + Date.now(), { cache: 'no-store' });
+      if (!r.ok) throw 0;
+      const j = await r.json();
+      if (!j || !j.v) throw 0;
+      if (j.v === window.__APP_VER) { if (показать) { const d = баннер('✅ У тебя самая свежая версия');
+          setTimeout(function(){ d.remove(); }, 2500); } return false; }
+      if (window.__onUpdate) window.__onUpdate(applyUpdate); else applyUpdate();
+      return true;
+    } catch (_) {
+      if (показать) { const d = баннер('📴 Нет интернета — обновить не выйдет');
+        setTimeout(function(){ d.remove(); }, 2500); }
+      return false;
+    }
+  }
+  window.__checkUpdate = function () { return checkVersion(true); };
+  window.addEventListener('load', function () { setTimeout(checkVersion, 300); setTimeout(checkVersion, 3000); });
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) checkVersion(); });
+  addEventListener('online', checkVersion);
+  setInterval(checkVersion, 60 * 1000);
+})();
+</script>
 </body>
 </html>
