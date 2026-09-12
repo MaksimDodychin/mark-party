@@ -1,5 +1,5 @@
 // Scoped offline application updater; version changes with the payload and updater.
-const VERSION = '15fefd8040';
+const VERSION = 'c9b6f88d89';
 const PREFIX = "party-";
 const CACHE = PREFIX + VERSION;
 const SCOPE = new URL(self.registration.scope);
