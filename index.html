@@ -119,7 +119,7 @@
   <link rel="apple-touch-icon-precomposed" sizes="180x180" href="apple-touch-icon.png">
   <meta name="msapplication-TileImage" content="icon-192.png">
   <meta name="msapplication-TileColor" content="#14243f">
-  <script>window.__APP_VER = "13b02f268f";</script>
+  <script>window.__APP_VER = "538fe168e9";</script>
 </head>
 <body>
 <div id="err"></div>
@@ -974,6 +974,10 @@ const PoopStorm = {
 };
 
 // ======================= МОДЕЛИ ДЛЯ ИГР =======================
+// Жёсткая труба задаётся точками крепления: поворот и длина не расходятся с ручкой/щёткой.
+function vacuumFitTube(mesh,a,b){const A=new THREE.Vector3(...a),B=new THREE.Vector3(...b),d=B.clone().sub(A);mesh.position.copy(A.add(B).multiplyScalar(.5));mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),d.clone().normalize());mesh.scale.y=(d.length()+.035)/mesh.geometry.parameters.height;return mesh;}
+function vacuumJoint(g,a,b,r,material){const m=new THREE.Mesh(new THREE.CylinderGeometry(r,r,1,14),material);vacuumFitTube(m,a,b);m.castShadow=true;g.add(m);return m;}
+
 function makeVacuum(hex) {
   const g = new THREE.Group();
   const body = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.6, 0.75, 16), new THREE.MeshStandardMaterial({ color: hex, roughness: .5 })); body.position.y = 0.5; body.castShadow = true; g.add(body);
@@ -1001,6 +1005,7 @@ function makeVikhr(hex) {
   const wand = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.0, 10), steel); wand.position.set(0.08, 0.6, 0.38); wand.rotation.x = -0.6; g.add(wand);
   const white = new THREE.MeshStandardMaterial({ color: 0xffffff }), black = new THREE.MeshStandardMaterial({ color: 0x111111 });
   for (const ex of [-0.15, 0.15]) { const e = new THREE.Mesh(new THREE.SphereGeometry(0.09, 10, 10), white); e.position.set(ex, 0.95, 0.4); g.add(e); const pu = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 8), black); pu.position.set(ex, 0.95, 0.47); g.add(pu); }
+  vacuumFitTube(wand,[.08,.12,.66],[.08,1.04,.38]);
   g.scale.setScalar(1.25); g.userData = {};
   return g;
 }
@@ -1028,6 +1033,7 @@ function makeRaketa(hex) {
   for (const ex of [-0.28, 0.28]) { const ski = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 1.3), steel); ski.position.set(ex, 0.06, 0.1); g.add(ski); }
   const white = new THREE.MeshStandardMaterial({ color: 0xffffff }), black = new THREE.MeshStandardMaterial({ color: 0x111111 });
   for (const ex of [-0.14, 0.14]) { const e = new THREE.Mesh(new THREE.SphereGeometry(0.08, 10, 10), white); e.position.set(ex, 0.62, 0.55); g.add(e); const pu = new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 8), black); pu.position.set(ex, 0.62, 0.62); g.add(pu); }
+  vacuumJoint(g,[0,.48,1.0],[0,.20,1.35],.12,dark);
   g.scale.setScalar(1.25); g.userData = {};
   return g;
 }
@@ -3272,6 +3278,8 @@ renderer.render(scene, camera);
         const зр = new Т.Mesh(new Т.SphereGeometry(0.045, 10, 8), мт(0x111111, 0.3)); зр.position.set(s*0.15, 0.5, 0.51); тело.add(зр); }
       const шл = new Т.Mesh(new Т.TorusGeometry(0.3, 0.06, 8, 20, Math.PI*1.1), мт(0x374151, 0.5)); шл.position.set(0, 0.62, -0.2); шл.rotation.y = Math.PI/2; тело.add(шл);
       const щ = new Т.Mesh(new Т.BoxGeometry(0.5, 0.08, 0.16), мт(0x1f2937, 0.5)); щ.position.set(0, 0.06, 0.5); тело.add(щ);
+      const aКреп=new Т.Vector3(0,.25,.38),bКреп=new Т.Vector3(0,.09,.50),dКреп=bКреп.clone().sub(aКреп);
+      const муфта=new Т.Mesh(new Т.CylinderGeometry(.075,.075,dКреп.length()+.04,12),мт(0x374151,.5));муфта.position.copy(aКреп.add(bКреп).multiplyScalar(.5));муфта.quaternion.setFromUnitVectors(new Т.Vector3(0,1,0),dКреп.normalize());тело.add(муфта);
       for (const [x, z] of [[-0.36, 0.25], [0.36, 0.25], [-0.36, -0.25], [0.36, -0.25]]) { const кол = new Т.Mesh(new Т.CylinderGeometry(0.1, 0.1, 0.08, 14), мт(0x111111, 0.7)); кол.rotation.z = Math.PI/2; кол.position.set(x, 0.1, z); тело.add(кол); u.ноги.push(кол); }
       u.голова = купол; u.высота = 1.25; u.верх = 0.95;
     } else {
